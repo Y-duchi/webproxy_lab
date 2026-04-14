@@ -3,7 +3,7 @@
 이 문서는 **Windows**와 **macOS** 사용자가 Docker와 VSCode DevContainer 기능을 활용하여 C 개발 및 디버깅 환경을 빠르게 구축할 수 있도록 도와줍니다.
 
 [**주의**] 지난 주차와 다른 점만 하시려면 4장부터 7장만 보세요.
-[**주의**] webproxy-lab의 경우 tidy 웹 서버와 proxy 서버 두가지를 구현해야 해서 두가지 debugging 설정을 제공합니다. 이에 대한 설명은 7장에서 설명하니 꼭 읽어보시기 바랍니다.
+[**주의**] webproxy-lab의 경우 tiny 웹 서버와 proxy 서버 두가지를 구현해야 해서 두가지 debugging 설정을 제공합니다. 이에 대한 설명은 7장에서 설명하니 꼭 읽어보시기 바랍니다.
 
 ---
 
@@ -71,11 +71,11 @@ webproxy_lab_docker/
 │   └── tasks.json             # 컴파일 자동화 설정
 │
 ├── webproxy-lab
-│   ├── tidy                    # tidy 웹 서버 구현 폴더
-│   │  ├── cgi-bin              # tidy 웹 서버를 테스트하기 위한 동적 컨텐츠를 구현하기 위한 폴더
-│   │  ├── home.html            # tidy 웹 서버를 테스트하기 위한 정적 HTML 파일
-│   │  ├── tidy.c               # tidy 웹 서버 구현 파일
-│   │  └── Makefile             # tidy 웹 서버를 컴파일하기 위한 파일
+│   ├── tiny                    # tiny 웹 서버 구현 폴더
+│   │  ├── cgi-bin              # tiny 웹 서버를 테스트하기 위한 동적 컨텐츠를 구현하기 위한 폴더
+│   │  ├── home.html            # tiny 웹 서버를 테스트하기 위한 정적 HTML 파일
+│   │  ├── tiny.c               # tiny 웹 서버 구현 파일
+│   │  └── Makefile             # tiny 웹 서버를 컴파일하기 위한 파일
 │   ├── Makefile                # proxy 웹 서버를 컴파일하기 위한 파일
 │   └── proxy.c                 # proxy 웹 서버 구현 파일
 │
@@ -101,11 +101,11 @@ webproxy_lab_docker/
 ## 7. C 파일에 브레이크포인트 설정 후 디버깅 (F5)
 
 이제 본격적으로 문제를 풀 시간입니다. `webproxy-lab/README.md` 파일을 참조하셔서 webproxy 문제를 풀어보세요.
-구현 순서는 tidy 웹서버(`webproxy-lab/tidy/tidy.c`)를 CSApp책에 있는 코드를 이용해서 구현하고, proxy서버(`webproxy-lab/proxy.c`)를 구현한 뒤에 최종 `webproxy-lab/mdriver`를 실행하여 70점 만점을 목표로 구현하세요.
+구현 순서는 tiny 웹서버(`webproxy-lab/tiny/tiny.c`)를 CSApp책에 있는 코드를 이용해서 구현하고, proxy서버(`webproxy-lab/proxy.c`)를 구현한 뒤에 최종 `webproxy-lab/mdriver`를 실행하여 70점 만점을 목표로 구현하세요.
 
-C 언어로 문제를 풀다가 디버깅이 필요하시면 소스코드에 BreakPoint를 설정한 뒤에 키보드에서 `F5`를 눌러 디버깅을 시작할 수 있습니다. 디버깅은 tidy 서버와 proxy 서버용 2가지로 제공되며 각각 "Debug Tidy Server", "Debug Proxy Server" 이름을 가집니다. 두가지 중 원하는 디버깅 설정을 선택한 뒤에 `F5`를 누르면 해당 서버가 디버깅모드로 실행됩니다. 
+C 언어로 문제를 풀다가 디버깅이 필요하시면 소스코드에 BreakPoint를 설정한 뒤에 키보드에서 `F5`를 눌러 디버깅을 시작할 수 있습니다. 디버깅은 tiny 서버와 proxy 서버용 2가지로 제공되며 각각 "Debug Tiny Server", "Debug Proxy Server" 이름을 가집니다. 두가지 중 원하는 디버깅 설정을 선택한 뒤에 `F5`를 누르면 해당 서버가 디버깅모드로 실행됩니다. 
 
-* 기본적으로 "Debug Tidy Server"는 tidy 서버를 실행할때 포트를 `8000`을, "Debug Proxy Server"는 `4500`를  사용합니다. 해당 포트를 이미 다른 프로세스가 사용중이라면 새로운 포트로(`launch.json`파일에서 가능) 변경한 뒤에 디버깅을 진행합니다.
+* 기본적으로 "Debug Tiny Server"는 tiny 서버를 실행할때 포트를 `8000`을, "Debug Proxy Server"는 `4500`를  사용합니다. 해당 포트를 이미 다른 프로세스가 사용중이라면 새로운 포트로(`launch.json`파일에서 가능) 변경한 뒤에 디버깅을 진행합니다.
 
 
 ---
