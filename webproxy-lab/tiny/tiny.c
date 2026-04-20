@@ -116,3 +116,15 @@ void clienterror(int fd, char *cause, char *errnum, char *shortmsg, char *longms
   Rio_writen(fd, body, strlen(body)); // 마지막으로 실제 HTML 에러 페이지 내용을 브라우저에 보낸다.
 }
 
+void read_requesthdrs(rio_t *rp) // 요청 헤더를 빈 줄이 나올 때까지 읽는다.
+{
+  char buf[MAXLINE]; // 헤더 한 줄을 저장할 버퍼다.
+
+  Rio_readlineb(rp, buf, MAXLINE); // 첫 번째 헤더 줄을 읽는다.
+  while (strcmp(buf, "\r\n"))      // 빈 줄이 아니면 아직 헤더가 남아 있다는 뜻이다.
+  {
+    printf("%s", buf);               // 읽은 헤더를 출력한다.
+    Rio_readlineb(rp, buf, MAXLINE); // 다음 헤더 줄을 읽는다.
+  }
+  return; // 헤더를 다 읽었으니 함수 종료.
+}
