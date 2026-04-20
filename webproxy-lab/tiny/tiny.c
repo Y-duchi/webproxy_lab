@@ -1,46 +1,97 @@
 /* $begin tinymain */
 /*
- * tiny.c - A simple, iterative HTTP/1.0 Web server that uses the
- *     GET method to serve static and dynamic content.
- *
- * Updated 11/2019 droh
- *   - Fixed sprintf() aliasing issue in serve_static(), and clienterror().
+ * tiny.c
+ * 아주 작은 HTTP/1.0 웹 서버의 핵심 흐름만 담은 예제 파일이다.
+ * 이 서버는 GET 요청만 처리하고, 정적 파일 또는 CGI 프로그램을 실행해 응답한다.
  */
-#include "csapp.h"
 
-void doit(int fd);
-void read_requesthdrs(rio_t *rp);
-int parse_uri(char *uri, char *filename, char *cgiargs);
-void serve_static(int fd, char *filename, int filesize);
-void get_filetype(char *filename, char *filetype);
-void serve_dynamic(int fd, char *filename, char *cgiargs);
+#include "csapp.h" // CS:APP 책에서 제공하는 소켓, 파일, I/O 도우미 함수를 사용하기 위해 헤더를 포함한다.
+
+void doit(int fd); // 클라이언트와 연결된 소켓 하나를 받아서 HTTP 요청 하나를 처리한다.
+void read_requesthdrs(rio_t *rp); // 첫 줄을 제외한 나머지 HTTP 헤더를 읽어 넘긴다.
+int parse_uri(char *uri, char *filename, char *cgiargs); // URI를 보고 정적 요청인지 동적 요청인지 판단한다.
+void serve_static(int fd, char *filename, int filesize); // 정적 파일을 읽어서 브라우저로 보내는 함수다.
+void get_filetype(char *filename, char *filetype); // 파일 확장자를 보고 Content-type 문자열을 만든다.
+void serve_dynamic(int fd, char *filename, char *cgiargs); // CGI 프로그램을 실행해서 동적 응답을 만든다.
 void clienterror(int fd, char *cause, char *errnum, char *shortmsg,
-                 char *longmsg);
+                 char *longmsg); // 오류가 생겼을 때 브라우저에 HTTP 에러 응답을 보낸다.
 
-int main(int argc, char **argv)
+int main(int argc, char **argv) // 프로그램이 시작되면 가장 먼저 main 함수가 실행된다.
 {
-  int listenfd, connfd;
-  char hostname[MAXLINE], port[MAXLINE];
-  socklen_t clientlen;
-  struct sockaddr_storage clientaddr;
+  int listenfd, connfd; // listenfd는 연결을 기다리는 소켓이고, connfd는 실제 클라이언트와 통신하는 소켓이다.
+  char hostname[MAXLINE], port[MAXLINE]; // 접속한 클라이언트의 호스트 이름과 포트 번호를 문자열로 저장할 공간이다.
+  socklen_t clientlen; // 클라이언트 주소 구조체의 크기를 저장하는 변수다.
+  struct sockaddr_storage clientaddr; // 클라이언트 주소 정보를 담는 구조체다.
 
-  /* Check command line args */
-  if (argc != 2)
+  if (argc != 2) // 실행 인자가 프로그램 이름과 포트 번호, 이렇게 2개가 아니면 잘못 실행한 것이다.
   {
-    fprintf(stderr, "usage: %s <port>\n", argv[0]);
-    exit(1);
+    fprintf(stderr, "usage: %s <port>\n", argv[0]); // 사용법을 표준 에러로 출력해서 사용자에게 알려준다.
+    exit(1); // 잘못 실행했으므로 프로그램을 바로 종료한다.
   }
 
-  listenfd = Open_listenfd(argv[1]);
-  while (1)
+  listenfd = Open_listenfd(argv[1]); // 사용자가 준 포트 번호로 서버용 리스닝 소켓을 만든다.
+  while (1) // 웹 서버는 종료될 때까지 계속 요청을 받아야 하므로 무한 반복한다.
   {
-    clientlen = sizeof(clientaddr);
+    clientlen = sizeof(clientaddr); // Accept가 주소 정보를 채울 수 있도록 구조체 크기를 먼저 넣어 둔다.
     connfd = Accept(listenfd, (SA *)&clientaddr,
-                    &clientlen); // line:netp:tiny:accept
+                    &clientlen); // 새로운 클라이언트 연결을 받아서 통신용 소켓 connfd를 얻는다.
     Getnameinfo((SA *)&clientaddr, clientlen, hostname, MAXLINE, port, MAXLINE,
-                0);
-    printf("Accepted connection from (%s, %s)\n", hostname, port);
-    doit(connfd);  // line:netp:tiny:doit
-    Close(connfd); // line:netp:tiny:close
+                0); // 방금 접속한 클라이언트의 주소를 사람이 읽기 쉬운 호스트명과 포트 문자열로 바꾼다.
+    printf("Accepted connection from (%s, %s)\n", hostname, port); // 어떤 클라이언트가 접속했는지 서버 콘솔에 출력한다.
+    doit(connfd); // 이 클라이언트가 보낸 HTTP 요청 하나를 실제로 처리한다.
+    Close(connfd); // 요청 처리가 끝났으므로 이 클라이언트와의 연결을 닫는다.
+  }
+}
+
+void doit(int fd) // 클라이언트 요청 한 건을 읽고, 분석하고, 적절한 응답을 보내는 핵심 함수다.
+{
+  int is_static; // 정적 콘텐츠 요청이면 1, 동적 콘텐츠 요청이면 0 같은 구분 결과를 담는다.
+  struct stat sbuf; // 요청한 파일의 존재 여부, 크기, 권한 같은 파일 정보를 저장한다.
+  char buf[MAXLINE], method[MAXLINE], uri[MAXLINE], version[MAXLINE]; // 요청 첫 줄에서 메서드, URI, HTTP 버전을 꺼내 저장한다.
+  char filename[MAXLINE], cgiargs[MAXLINE]; // 실제 파일 경로와 CGI 인자를 따로 저장할 버퍼다.
+  rio_t rio; // Robust I/O를 사용해서 소켓에서 안전하게 한 줄씩 읽기 위한 버퍼 구조체다.
+
+  Rio_readinitb(&rio, fd); // fd 소켓을 rio 버퍼와 연결해서 읽기 준비를 한다.
+  Rio_readlineb(&rio, buf, MAXLINE); // 요청의 첫 줄(예: GET /index.html HTTP/1.0)을 읽어 buf에 저장한다.
+  printf("Request headers:\n"); // 지금부터 요청 내용을 출력한다는 안내 문구를 서버 콘솔에 찍는다.
+  printf("%s", buf); // 방금 읽은 요청 첫 줄 자체를 서버 콘솔에 출력한다.
+  sscanf(buf, "%s %s %s", method, uri, version); // 첫 줄에서 메서드, URI, 버전을 공백 기준으로 잘라 각각 저장한다.
+
+  if (strcasecmp(method, "GET")) // method가 GET과 다르면 0이 아닌 값이 나오므로 이 서버가 처리할 수 없는 요청이다.
+  {
+    clienterror(fd, method, "501", "Not implemented",
+                "Tiny does not implement this method"); // 브라우저에 501 에러를 보내서 GET만 지원한다고 알려준다.
+    return; // 더 진행할 수 없으므로 현재 요청 처리를 여기서 끝낸다.
+  }
+
+  read_requesthdrs(&rio); // 첫 줄 뒤에 붙은 나머지 요청 헤더들을 읽어서 소비한다.
+  is_static = parse_uri(uri, filename, cgiargs); // URI를 분석해서 정적 요청인지 동적 요청인지 판단하고, 필요한 경로 정보도 만든다.
+
+  if (stat(filename, &sbuf) < 0) // filename에 해당하는 파일이 없거나 접근할 수 없으면 음수가 반환된다.
+  {
+    clienterror(fd, filename, "404", "Not found",
+                "Tiny couldn't find this file"); // 브라우저에 404 에러를 보내서 요청한 대상을 찾지 못했다고 알려준다.
+    return; // 파일이 없으므로 더 진행하지 않고 함수에서 빠져나온다.
+  }
+
+  if (is_static) // parse_uri 결과가 참이면 정적 파일을 보내야 하는 요청이다.
+  {
+    if (!(S_ISREG(sbuf.st_mode)) || !(S_IRUSR & sbuf.st_mode)) // 일반 파일이 아니거나, 서버 프로세스에 읽기 권한이 없으면 전송할 수 없다.
+    {
+      clienterror(fd, filename, "403", "Forbidden",
+                  "Tiny couldn't read the file"); // 브라우저에 403 에러를 보내서 접근이 허용되지 않는다고 알려준다.
+      return; // 권한 문제가 있으므로 요청 처리를 중단한다.
+    }
+    serve_static(fd, filename, sbuf.st_size); // 파일 내용과 HTTP 헤더를 만들어서 브라우저로 전송한다.
+  }
+  else // is_static이 거짓이면 CGI 프로그램을 실행하는 동적 요청으로 본다.
+  {
+    if (!(S_ISREG(sbuf.st_mode)) || !(S_IRUSR & sbuf.st_mode)) // 여기서는 기존 코드 흐름을 그대로 유지하면서 읽기 가능 여부를 다시 확인한다.
+    {
+      clienterror(fd, filename, "403", "Forbidden",
+                  "Tiny couldn't read the file"); // 실행 대상에 접근할 수 없으면 403 에러를 응답한다.
+      return; // 접근 불가이므로 함수 실행을 멈춘다.
+    }
+    serve_dynamic(fd, filename, cgiargs); // CGI 프로그램을 실행해서 나온 결과를 브라우저에 전달한다.
   }
 }
