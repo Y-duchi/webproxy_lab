@@ -95,3 +95,24 @@ void doit(int fd) // 클라이언트 요청 한 건을 읽고, 분석하고, 적
     serve_dynamic(fd, filename, cgiargs); // CGI 프로그램을 실행해서 나온 결과를 브라우저에 전달한다.
   }
 }
+
+void clienterror(int fd, char *cause, char *errnum, char *shortmsg, char *longmsg) // 에러가 났을 때 브라우저로 HTTP 에러 응답을 보내는 함수다.
+{
+  char buf[MAXLINE], body[MAXBUF]; // buf는 HTTP 헤더 한 줄씩 담는 용도, body는 브라우저에 보여줄 HTML 본문이다.
+
+  sprintf(body, "<html><title>Tiny Error</title>"); // HTML 문서 시작 부분과 브라우저 탭 제목을 body에 처음 써 넣는다.
+  sprintf(body + strlen(body), "<body bgcolor=\"ffffff\">\r\n"); // 지금까지 만든 문자열 맨 뒤에 body 태그를 이어 붙인다.
+  sprintf(body + strlen(body), "%s: %s\r\n", errnum, shortmsg); // 예: "404: Not found" 같은 핵심 에러 문장을 본문에 추가한다.
+  sprintf(body + strlen(body), "<p>%s: %s\r\n", longmsg, cause); // 에러가 왜 났는지 더 자세한 설명을 한 줄 추가한다.
+  sprintf(body + strlen(body), "<hr><em>The Tiny Web server</em>\r\n"); // 페이지 아래쪽에 구분선과 서버 이름 문구를 붙인다.
+
+  sprintf(buf, "HTTP/1.0 %s %s\r\n", errnum, shortmsg); // HTTP 상태줄을 만든다. 예: "HTTP/1.0 404 Not found"
+  Rio_writen(fd, buf, strlen(buf)); // 방금 만든 상태줄을 클라이언트(브라우저)에게 보낸다.
+  sprintf(buf, "Content-type: text/html\r\n"); // 지금부터 보내는 본문 데이터가 HTML 형식이라는 헤더를 만든다.
+  Rio_writen(fd, buf, strlen(buf)); // Content-type 헤더를 브라우저에 보낸다.
+  sprintf(buf, "Content-length: %d\r\n\r\n", (int)strlen(body)); // HTML 본문 길이와 헤더 끝 표시(\r\n\r\n)를 만든다.
+  Rio_writen(fd, buf, strlen(buf)); // Content-length 헤더까지 브라우저에 보낸다.
+
+  Rio_writen(fd, body, strlen(body)); // 마지막으로 실제 HTML 에러 페이지 내용을 브라우저에 보낸다.
+}
+
