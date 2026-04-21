@@ -181,3 +181,22 @@ void get_filetype(char *filename, char *filetype) // 파일 이름을 보고 Con
     strcpy(filetype, "text/plain"); // 일단 일반 텍스트 파일로 처리한다
 }
 
+void serve_static(int fd, char *filename, int filesize) // 정적 파일을 브라우저에 보내는 함수다.
+{
+  int srcfd;                                  // 보낼 파일을 열었을 때 돌려받는 파일 디스크립터다.
+  char *srcp, filetype[MAXLINE], buf[MAXBUF]; // srcp는 파일 내용을 가리킬 포인터, filetype은 MIME 타입, buf는 응답 헤더를 담는 버퍼다.
+
+  get_filetype(filename, filetype);                          // 파일 이름을 보고 Content-type 값을 정한다. 예: text/html, image/jpeg
+  sprintf(buf, "HTTP/1.0 200 OK\r\n");                       // 요청이 성공했음을 알리는 상태줄을 만든다.
+  sprintf(buf, "%sServer: Tiny Web Server\r\n", buf);        // 어떤 서버가 응답했는지 알려주는 헤더를 뒤에 붙인다.
+  sprintf(buf, "%sConnection: close\r\n", buf);              // 응답을 보낸 뒤 연결을 닫겠다는 헤더를 뒤에 붙인다.
+  sprintf(buf, "%sContent-length: %d\r\n", buf, filesize);   // 본문 데이터의 길이를 헤더에 추가한다.
+  sprintf(buf, "%sContent-type: %s\r\n\r\n", buf, filetype); // 본문 데이터 종류를 헤더에 추가하고, 빈 줄로 헤더 끝을 표시한다.
+  Rio_writen(fd, buf, strlen(buf));                          // 지금까지 만든 HTTP 응답 헤더 전체를 클라이언트에게 보낸다.
+
+  srcfd = Open(filename, O_RDONLY, 0);                        // 전송할 파일을 읽기 전용으로 연다.
+  srcp = Mmap(0, filesize, PROT_READ, MAP_PRIVATE, srcfd, 0); // 파일 내용을 메모리에 연결해서 쉽게 읽을 수 있게 만든다. 파일을 통째로 읽기 쉽게 메모리에 붙인다
+  Close(srcfd);                                               // 파일 내용은 이미 메모리에 연결했으므로 파일 디스크립터는 닫아도 된다.
+  Rio_writen(fd, srcp, filesize);                             // 파일 내용을 클라이언트에게 그대로 보낸다.
+  Munmap(srcp, filesize);                                     // 메모리에 연결했던 파일 내용을 해제한다.
+}
